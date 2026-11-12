@@ -786,15 +786,27 @@ async function enablePush(){
     const r=await fetch(API+"/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uid:uid(),sub:sub.toJSON()})});if(!r.ok)throw 0;
     S.settings.pushOn=true;save("settings");pushData();confetti(80);toast("🔔 Notificaciones activadas");render(VIEW)}catch(e){toast("No se pudo activar. Probá de nuevo")}}
 async function testPush(){try{const r=await fetch(API+"/test",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({uid:uid()})});const j=await r.json();toast(j.sent?"Enviada: llega en segundos":"No hay dispositivos suscritos. Activalas primero")}catch(e){toast("Sin conexión")}}
+async function diagPush(){const rows=[];const ok=(c,t,f)=>rows.push(`<div class="tip"><span class="e">${c?"✅":"❌"}</span><div><b>${t}</b>${!c&&f?`<div class="mut">${f}</div>`:""}</div></div>`);
+  ok(!isIOS()||standalone(),"Abierta desde el ícono de inicio","En iPhone, abrila desde el ícono de la pantalla de inicio, no desde Safari.");
+  ok(pushOK(),"El dispositivo soporta notificaciones","Actualizá iOS a 16.4 o superior.");
+  const perm=("Notification" in window)?Notification.permission:"no";ok(perm==="granted","Permiso de notificaciones concedido",perm==="denied"?"Está bloqueado: Ajustes del iPhone → Notificaciones → Plan 12 → Permitir.":"Tocá Activar notificaciones y después Permitir.");
+  let sub=null;try{const reg=await navigator.serviceWorker.ready;sub=await reg.pushManager.getSubscription()}catch(e){}
+  ok(!!sub,"Este equipo está suscrito","Tocá Activar notificaciones.");
+  let s=null;try{s=await(await fetch(API+"/status?uid="+encodeURIComponent(uid()),{cache:"no-store"})).json()}catch(e){}
+  if(!s)ok(false,"Servidor","No responde /api/status. Revisá que el último deploy de Netlify haya terminado bien.");
+  else{ok(s.vapid,"Claves VAPID cargadas en Netlify","Faltan las variables VAPID_* en Netlify, o falta Trigger deploy después de cargarlas.");
+    ok(s.devices>0,`Dispositivos registrados en el servidor: ${s.devices}`,"Tocá Activar notificaciones otra vez.");
+    const lr=s.lastRun;ok(!!lr&&Date.now()-lr.at<2*3600e3,lr?`El programador corrió a las ${new Date(lr.at).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})}${lr.sent!==undefined?` · envió ${lr.sent}`:""}`:"El programador todavía no corrió","Corre cada hora en punto. Si después de una hora sigue así, avisame.");}
+  openSheet(`<h3>🔧 Diagnóstico de notificaciones</h3>${rows.join("")}<button class="btn w" style="margin-top:12px" id="dT">Enviar una de prueba</button>`,b=>b.querySelector("#dT").onclick=testPush)}
 function notifCard(){const p=S.settings.notif||{};return`<div class="card" id="notifCard"><h2>🔔 Notificaciones<span class="mut">${S.settings.pushOn?"activadas":"desactivadas"}</span></h2>
   <div class="mut" style="margin-bottom:10px">Se programan solas según la hora y lo que ya hiciste hoy: si ya tomaste la creatina, no te la recuerdan. También llegan al Apple Watch.</div>
-  <div class="inl" style="margin-bottom:10px"><button class="btn sm" id="nOn">${S.settings.pushOn?"Reactivar en este equipo":"Activar notificaciones"}</button><button class="btn ghost sm" id="nTest">Probar</button></div>
+  <div class="inl" style="margin-bottom:10px"><button class="btn sm" id="nOn">${S.settings.pushOn?"Reactivar en este equipo":"Activar notificaciones"}</button><button class="btn ghost sm" id="nTest">Probar</button><button class="btn ghost sm" id="nDiag">Diagnóstico</button></div>
   <div class="list">${NCATS.map(([k,t,d])=>`<div class="it ${p[k]!==false?"on":""}" data-nc="${k}"><div class="ck"></div><div><div class="t" style="text-decoration:none;opacity:1">${t}</div><div class="d" style="text-decoration:none;opacity:1">${d}</div></div></div>`).join("")}</div>
   <button class="btn ghost sm" style="margin-top:10px" id="nSteps">👟 Sincronizar pasos del Apple Watch</button>
   <div class="cat">Código de sincronización</div><div class="mut" style="margin-bottom:6px">Usalo para ver tus datos en otro equipo (por ejemplo, la compu). Es privado: no lo compartas.</div>
   <div class="inl"><input id="uidIn" value="${esc(uid())}" style="font-size:12px"><button class="btn ghost sm" id="uidB">Usar este</button></div></div>`}
 function bindNotif(V){if(!V.querySelector("#notifCard"))return;
-  V.querySelector("#nOn").onclick=enablePush;V.querySelector("#nTest").onclick=testPush;V.querySelector("#nSteps").onclick=openStepsSetup;
+  V.querySelector("#nOn").onclick=enablePush;V.querySelector("#nDiag").onclick=diagPush;V.querySelector("#nTest").onclick=testPush;V.querySelector("#nSteps").onclick=openStepsSetup;
   V.querySelectorAll("[data-nc]").forEach(el=>el.onclick=()=>{S.settings.notif=S.settings.notif||{};const k=el.dataset.nc;S.settings.notif[k]=S.settings.notif[k]===false;save("settings");el.classList.toggle("on",S.settings.notif[k]!==false)});
   V.querySelector("#uidB").onclick=async()=>{const v=V.querySelector("#uidIn").value.trim();if(!/^[A-Za-z0-9-]{8,64}$/.test(v)){toast("Código inválido");return}if(v===uid())return;lsRawSet("uid",v);lsRawSet("updatedAt","0");await pullData();if(S.settings.pushOn)enablePush();toast("Equipo vinculado");render(VIEW)}}
 

@@ -35,13 +35,14 @@ export function build({ hour: h, wd, date }, sum, steps) {
   const start = sum?.start || "2026-11-16";
   const dn = Math.round((parse(date) - parse(start)) / 864e5) + 1;
   const week = dn < 1 ? 0 : Math.floor((dn - 1) / 7) + 1;
-  const active = dn >= 1 && dn <= 84;
+  const started = dn >= 1;
+  const active = dn >= 1 && dn <= 84; // recordatorios diarios desde el lunes de inicio; compras y batch desde el sábado anterior
   const pre = dn < 1 && dn >= -2;
   const fresh = sum && sum.date === date;
   const s = fresh ? sum : { water: 0, crea: false, meals: 0, weighed: false, waist: false, trained: false, stepsDone: false, pct: 0, minOk: false, streak: sum?.streak || 0, missing: [] };
   const prefs = sum?.prefs || {};
   const on = (c) => prefs[c] !== false;
-  const train = [1, 3, 5].includes(wd) && active;
+  const train = [1, 3, 5].includes(wd) && started;
   const goal = train ? 9 : 8;
   const stepsGoal = Math.min(10000, 6000 + 1000 * Math.max(0, week - 1));
   const st = steps && steps.date === date ? steps.steps : null;
